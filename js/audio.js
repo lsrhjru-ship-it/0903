@@ -217,6 +217,63 @@ class AudioEngine {
         osc.stop(time + 0.07);
     }
 
+    /**
+     * Uploaded/served MP3 playlist support (song1.mp3, song2.mp3, song3.mp3 ...)
+     * files: array of filenames, folder: folder they live in (relative to index.html)
+     */
+    initPlaylist(files, folder) {
+        if (!files || !files.length) {
+            this.playlist = [];
+            return false;
+        }
+        const cleanFolder = (folder || '').replace(/\/+$/, '');
+        this.playlist = files.map(f => (cleanFolder ? `${cleanFolder}/${f}` : f));
+        this.playlistIndex = 0;
+        return true;
+    }
+
+    startPlaylist() {
+        if (!this.playlist || !this.playlist.length) return false;
+        this.stopPlaylist();
+        this.playlistIndex = 0;
+        this._playPlaylistTrack(this.playlistIndex);
+        return true;
+    }
+
+    _playPlaylistTrack(i) {
+        if (!this.playlist || !this.playlist.length) return;
+        const url = this.playlist[i % this.playlist.length];
+        const el = new Audio(url);
+        el.volume = this.melodyVol;
+        el.addEventListener('ended', () => {
+            this.playlistIndex = (this.playlistIndex + 1) % this.playlist.length;
+            this._playPlaylistTrack(this.playlistIndex);
+        });
+        el.addEventListener('error', () => {
+            console.warn('음악 파일을 재생할 수 없습니다:', url);
+            if (this.playlist.length > 1) {
+                this.playlistIndex = (this.playlistIndex + 1) % this.playlist.length;
+                if (this.playlistIndex !== 0) this._playPlaylistTrack(this.playlistIndex);
+            }
+        });
+        el.play().catch(err => console.warn('MP3 재생 실패 (자동재생 정책일 수 있음):', err));
+        this.playlistAudio = el;
+    }
+
+    stopPlaylist() {
+        if (this.playlistAudio) {
+            this.playlistAudio.pause();
+            this.playlistAudio.currentTime = 0;
+            this.playlistAudio.src = '';
+            this.playlistAudio = null;
+        }
+    }
+
+    setPlaylistVolume(vol) {
+        this.melodyVol = parseFloat(vol);
+        if (this.playlistAudio) this.playlistAudio.volume = this.melodyVol;
+    }
+
     setMelodyVolume(vol) {
         this.melodyVol = parseFloat(vol);
         if (this.melodyGain && this.ctx) {
